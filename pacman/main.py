@@ -249,7 +249,7 @@ def tela_transicao_fase3():
         window.fill((10, 10, 40))  # fundo diferente (azul escuro)
 
         # Texto principal em destaque
-        titulo = font.render("🔥 FASE 3 🔥", True, (255, 100, 0))
+        titulo = font.render(" FASE 3 ", True, (255, 100, 0))
         window.blit(titulo, titulo.get_rect(center=(largura // 2, altura // 3)))
 
         # Subtexto
@@ -366,6 +366,23 @@ def tela_creditos():
 
         pg.display.update()
 
+class FloatingText:
+    def __init__(self, text, x, y, font, color=(255, 255, 0)):
+        self.text = text
+        self.x = x
+        self.y = y
+        self.font = font
+        self.color = color
+        self.timer = 60  # ~1 segundo a 60fps
+
+    def update(self):
+        self.y -= 1   # sobe devagar
+        self.timer -= 1
+
+    def draw(self, surface):
+        img = self.font.render(self.text, True, self.color)
+        surface.blit(img, (self.x, self.y))
+
 class PacMan:
     def __init__(self, scale, selected_character=0):
         self.scale = scale
@@ -384,6 +401,7 @@ class PacMan:
         self.black = (46, 139, 87)
         self.blue  = (32, 96, 64)
         scale = 20
+        self.ghost_speed_factor = 1.0  # começa normal
 
         self.window = pg.display.set_mode((scale * 37, scale * 31))
         pg.font.init()
@@ -485,7 +503,8 @@ class PacMan:
         # imagem coração 
         self.img_life = pg.image.load('img/coracao.png').convert_alpha()
         self.img_life = pg.transform.scale(self.img_life, (int(self.scale * 1.5), int(self.scale * 1.5)))
-        
+        self.floating_texts = []
+
         # mapa original
         self.map = [
             ['#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#'],
@@ -660,6 +679,11 @@ class PacMan:
                     pos_x = int(cx - pw / 2)
                     pos_y = int(cy - ph / 2)
                     self.window.blit(self.img_life, (pos_x, pos_y))
+        for text in self.floating_texts[:]:
+            text.update()
+            text.draw(self.window)
+            if text.timer <= 0:
+                self.floating_texts.remove(text)
 
     def animation_step(self):
         if self.sprite_frame == 60:
@@ -801,6 +825,10 @@ class PacMan:
                 self.window.blit(self.player_rotation(self.pac_man_2), (x, y))
             elif self.sprite_frame <= 60:
                 self.window.blit(self.player_rotation(self.pac_man_1), (x, y))
+
+    def aumentar_dificuldade(self):
+        self.level += 1
+        self.ghost_speed_factor += 0.5  # aumenta 50% a cada fase
 
     def ghost_render(self, color, position):
         x = position[0]
@@ -1097,7 +1125,9 @@ class PacMan:
                 self.ghost_blue_pos = [self.scale * 12, self.scale * 13]
                 self.harmless_mode_ghost_blue = False
                 self.distance_ghost_blue_to_pac_man = self.distance_ghost_to_pac_man(self.ghost_blue_pos)
-                self.score += 10
+                self.score += 20
+                self.floating_texts.append(
+                    FloatingText("+20", int(self.pac_man_pos[0]), int(self.pac_man_pos[1]), self.font))
             else:
                 if self.end_game == False:
                     self.sprite_frame = 0
@@ -1109,7 +1139,9 @@ class PacMan:
                 self.ghost_orange_pos = [self.scale * 12, self.scale * 14.5]
                 self.harmless_mode_ghost_orange = False
                 self.distance_ghost_orange_to_pac_man = self.distance_ghost_to_pac_man(self.ghost_orange_pos)
-                self.score += 10
+                self.score += 30
+                self.floating_texts.append(
+                    FloatingText("+30", int(self.pac_man_pos[0]), int(self.pac_man_pos[1]), self.font))
             else:
                 if self.end_game == False:
                     self.sprite_frame = 0
@@ -1121,7 +1153,9 @@ class PacMan:
                 self.ghost_pink_pos = [self.scale * 14, self.scale * 13]
                 self.harmless_mode_ghost_pink = False
                 self.distance_ghost_pink_to_pac_man = self.distance_ghost_to_pac_man(self.ghost_pink_pos)
-                self.score += 10
+                self.score += 40
+                self.floating_texts.append(
+                    FloatingText("+40", int(self.pac_man_pos[0]), int(self.pac_man_pos[1]), self.font))
             else:
                 if self.end_game == False:
                     self.sprite_frame = 0
@@ -1133,7 +1167,9 @@ class PacMan:
                 self.ghost_red_pos = [self.scale * 14, self.scale * 14.5]
                 self.harmless_mode_ghost_red = False
                 self.distance_ghost_red_to_pac_man = self.distance_ghost_to_pac_man(self.ghost_red_pos)
-                self.score += 10
+                self.score += 50
+                self.floating_texts.append(
+                    FloatingText("+50", int(self.pac_man_pos[0]), int(self.pac_man_pos[1]), self.font))
             else:
                 if self.end_game == False:
                     self.sprite_frame = 0
@@ -1254,18 +1290,15 @@ class PacMan:
             self.distance_ghost_red_to_pac_man    = self.distance_ghost_to_pac_man(self.ghost_red_pos)
             self.sprite_speed = 2
             
-    # 👇 aqui você cola o novo método
-    
-        # aumenta o nível
-            if self.level == 1:
-                tela_transicao(2)
+        if not any('.' in row or 'o' in row for row in self.map):
+            # terminou a fase
+            self.aumentar_dificuldade()
+            if self.level == 2:
                 self.map = self.map2
-                self.level = 2
-                
-            elif self.level == 2:
-                tela_transicao_fase3()
+                tela_transicao(self.level)
+            elif self.level == 3:
                 self.map = self.map3
-                self.level = 3 
+                tela_transicao_fase3()
             else: 
                     ret = tela_vitoria(self.score)  # mostra tela de vitória + créditos
                     if ret == 'menu':
